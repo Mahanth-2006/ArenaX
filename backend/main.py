@@ -9,11 +9,43 @@ from fastapi.staticfiles import StaticFiles
 from database import init_db_pool, query_one
 from routes import auth, teams, tournaments, matches, meta
 
+def auto_init_database():
+    """Automatically applies schema.sql and seeds initial data if database is fresh."""
+    try:
+        from database import query_one, get_db_cursor
+        check = query_one("SHOW TABLES LIKE 'users'")
+        if not check:
+            print("[DB-SETUP] Empty database detected. Initializing schema.sql...")
+            schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+            if os.path.exists(schema_path):
+                with open(schema_path, "r", encoding="utf-8") as f:
+                    sql_content = f.read()
+                statements = [s.strip() for s in sql_content.split(";") if s.strip()]
+                with get_db_cursor(commit=True) as (cursor, conn):
+                    for stmt in statements:
+                        upper_stmt = stmt.upper()
+                        if upper_stmt.startswith("CREATE DATABASE") or upper_stmt.startswith("USE "):
+                            continue
+                        try:
+                            cursor.execute(stmt)
+                        except Exception as e:
+                            pass
+                print("[DB-SETUP] Tables created successfully.")
+                try:
+                    import seed_data
+                    seed_data.seed()
+                    print("[DB-SETUP] Initial users (admin/admin123) and tournaments seeded.")
+                except Exception as se:
+                    print(f"[DB-SETUP] Seed notice: {se}")
+    except Exception as e:
+        print(f"[DB-SETUP] Auto-init skipped or deferred: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         init_db_pool()
         print("[DB-INFO] Database connection pool initialized.")
+        auto_init_database()
     except Exception as e:
         print(f"[DB-WARN] Database connection pool initialization deferred: {e}")
     yield

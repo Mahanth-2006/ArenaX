@@ -30,23 +30,32 @@ if db_url:
     if parsed.path and len(parsed.path) > 1:
         DB_NAME = parsed.path.lstrip("/")
 
+# Auto-detect if SSL should be used (standard for remote cloud MySQL)
+is_local_db = DB_HOST in ("localhost", "127.0.0.1", "db")
+DB_SSL_DISABLED = os.getenv("DB_SSL_DISABLED", "true" if is_local_db else "false").lower() == "true"
+
 pool = None
 
 def init_db_pool():
     global pool
     if pool is None:
-        pool = pooling.MySQLConnectionPool(
-            pool_name="arenax_pool",
-            pool_size=10,
-            pool_reset_session=True,
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME,
-            charset="utf8mb4",
-            autocommit=False
-        )
+        pool_kwargs = {
+            "pool_name": "arenax_pool",
+            "pool_size": 10,
+            "pool_reset_session": True,
+            "host": DB_HOST,
+            "port": DB_PORT,
+            "user": DB_USER,
+            "password": DB_PASSWORD,
+            "database": DB_NAME,
+            "charset": "utf8mb4",
+            "autocommit": False
+        }
+        if not DB_SSL_DISABLED:
+            pool_kwargs["ssl_disabled"] = False
+            pool_kwargs["ssl_verify_identity"] = False
+            pool_kwargs["ssl_verify_cert"] = False
+        pool = pooling.MySQLConnectionPool(**pool_kwargs)
     return pool
 
 def get_connection():
