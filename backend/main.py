@@ -11,7 +11,11 @@ from routes import auth, teams, tournaments, matches, meta
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db_pool()
+    try:
+        init_db_pool()
+        print("[DB-INFO] Database connection pool initialized.")
+    except Exception as e:
+        print(f"[DB-WARN] Database connection pool initialization deferred: {e}")
     yield
 
 app = FastAPI(
