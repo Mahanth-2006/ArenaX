@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Control Center · ArenaX</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='none' stroke='%2338BDF8' stroke-width='2.5'/%3E%3Cpath d='M11 11l10 10M21 11L11 21' stroke='%2338BDF8' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: {
+        base: '#0B0F19', deep: '#070B12', card: '#1E293B', cardhi: '#253449', edge: '#2B3B55',
+        accent: { DEFAULT: '#38BDF8', hover: '#0EA5E9' },
+        violet2: '#8B5CF6', win: '#34D399', warn: '#FBBF24', danger: '#F87171',
+      },
+      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'ui-monospace', 'monospace'] },
+      boxShadow: { card: '0 10px 30px -12px rgba(2,6,23,.65)', glow: '0 0 24px rgba(56,189,248,.25)' },
+    } } };
+  </script>
+  <link rel="stylesheet" href="css/style.css?v=20">
+</head>
+<body class="bg-base font-sans text-slate-200 antialiased min-h-screen">
+  <!-- Boot state — replaced by the admin shell (sidebar + topbar) in admin.js -->
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+    <svg width="46" height="46" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <defs><linearGradient id="arx-boot" x1="0" y1="0" x2="32" y2="32">
+        <stop offset="0" stop-color="#38BDF8"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+      <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="url(#arx-boot)" stroke-width="2" fill="rgba(56,189,248,.06)"/>
+      <path d="M11.5 11.5 20.5 20.5M20.5 11.5 11.5 20.5" stroke="url(#arx-boot)" stroke-width="2.6" stroke-linecap="round"/>
+    </svg>
+    <div class="mono" style="font-size:11px;color:var(--faint);letter-spacing:.14em">LOADING ADMIN CONTROL CENTER…</div>
+  </div>
+
+  <script src="js/ui.js?v=40"></script>
+  <script src="js/api.js?v=40"></script>
+  <script src="js/auth.js?v=40"></script>
+  <script src="js/bracket.js?v=41"></script>
+  <script src="js/admin.js?v=40"></script>
+</body>
+</html>

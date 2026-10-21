@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArenaX · Automated Tournament Management</title>
+  <meta name="description" content="ArenaX — create tournaments, build brackets, track winners. Automated tournament management & matchmaking engine.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='none' stroke='%2338BDF8' stroke-width='2.5'/%3E%3Cpath d='M11 11l10 10M21 11L11 21' stroke='%2338BDF8' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: {
+        base: '#0B0F19', deep: '#070B12', card: '#1E293B', cardhi: '#253449', edge: '#2B3B55',
+        accent: { DEFAULT: '#38BDF8', hover: '#0EA5E9' },
+        violet2: '#8B5CF6', win: '#34D399', warn: '#FBBF24', danger: '#F87171',
+      },
+      fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'ui-monospace', 'monospace'] },
+      boxShadow: { card: '0 10px 30px -12px rgba(2,6,23,.65)', glow: '0 0 24px rgba(56,189,248,.25)' },
+    } } };
+  </script>
+  <link rel="stylesheet" href="css/style.css?v=20">
+</head>
+<body class="bg-base font-sans text-slate-200 antialiased">
+  <noscript><div style="padding:20px;text-align:center">ArenaX requires JavaScript.</div></noscript>
+
+  <div class="landing">
+    <!-- ============================ LEFT · BRAND ============================ -->
+    <section class="land-left">
+      <div class="land-bg" aria-hidden="true">
+        <div class="glow-a"></div>
+        <div class="glow-b"></div>
+        <div class="grid-lines"></div>
+      </div>
+
+      <!-- animated bracket line-art -->
+      <svg class="bracket-svg" viewBox="0 0 860 540" fill="none" aria-hidden="true">
+        <!-- round-1 cards -->
+        <rect class="bk-card" x="30" y="40"  width="170" height="52" rx="8"/>
+        <rect class="bk-card" x="30" y="170" width="170" height="52" rx="8"/>
+        <rect class="bk-card" x="30" y="300" width="170" height="52" rx="8"/>
+        <rect class="bk-card" x="30" y="430" width="170" height="52" rx="8"/>
+        <!-- round-2 cards -->
+        <rect class="bk-card" x="330" y="105" width="170" height="52" rx="8"/>
+        <rect class="bk-card" x="330" y="365" width="170" height="52" rx="8"/>
+        <!-- final card -->
+        <rect class="bk-card" x="610" y="235" width="170" height="52" rx="8"/>
+        <!-- inner "team rows" -->
+        <g opacity="0.55">
+          <rect x="44" y="52"  width="86" height="7" rx="3.5" fill="#38BDF8" opacity=".55"/><rect x="44" y="70" width="66" height="7" rx="3.5" fill="#94A3B8" opacity=".3"/>
+          <rect x="44" y="182" width="72" height="7" rx="3.5" fill="#94A3B8" opacity=".3"/><rect x="44" y="200" width="92" height="7" rx="3.5" fill="#8B5CF6" opacity=".5"/>
+          <rect x="44" y="312" width="90" height="7" rx="3.5" fill="#34D399" opacity=".5"/><rect x="44" y="330" width="60" height="7" rx="3.5" fill="#94A3B8" opacity=".3"/>
+          <rect x="44" y="442" width="64" height="7" rx="3.5" fill="#94A3B8" opacity=".3"/><rect x="44" y="460" width="88" height="7" rx="3.5" fill="#FBBF24" opacity=".5"/>
+          <rect x="344" y="117" width="80" height="7" rx="3.5" fill="#38BDF8" opacity=".45"/><rect x="344" y="135" width="62" height="7" rx="3.5" fill="#94A3B8" opacity=".25"/>
+          <rect x="344" y="377" width="70" height="7" rx="3.5" fill="#94A3B8" opacity=".25"/><rect x="344" y="395" width="84" height="7" rx="3.5" fill="#8B5CF6" opacity=".45"/>
+          <rect x="624" y="247" width="82" height="7" rx="3.5" fill="#38BDF8" opacity=".4"/><rect x="624" y="265" width="82" height="7" rx="3.5" fill="#8B5CF6" opacity=".4"/>
+        </g>
+        <!-- connector wires -->
+        <path class="bk-line" d="M200 66 H265 M200 196 H265 M265 66 V196 M265 131 H330"/>
+        <path class="bk-line" d="M200 326 H265 M200 456 H265 M265 326 V456 M265 391 H330"/>
+        <path class="bk-line" d="M500 131 H555 M500 391 H555 M555 131 V391 M555 261 H610"/>
+        <path class="bk-line" d="M780 261 H812"/>
+        <!-- flowing winner paths -->
+        <path class="bk-flow" d="M200 66 H265 V131 H330"/>
+        <path class="bk-flow" d="M200 456 H265 V391 H330"/>
+        <path class="bk-flow" d="M500 391 H555 V261 H610"/>
+        <!-- junction nodes -->
+        <circle class="bk-node p1" cx="265" cy="131" r="5"/>
+        <circle class="bk-node p2" cx="265" cy="391" r="5"/>
+        <circle class="bk-node p3" cx="555" cy="261" r="5"/>
+        <!-- champion -->
+        <circle cx="828" cy="261" r="16" fill="rgba(251,191,36,.12)" stroke="rgba(251,191,36,.6)" stroke-width="1.6"/>
+        <text x="828" y="268" text-anchor="middle" font-size="17">🏆</text>
+      </svg>
+
+      <div class="land-content">
+        <div style="display:flex;align-items:center;gap:12px">
+          <svg width="42" height="42" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <defs><linearGradient id="arx-lg2" x1="0" y1="0" x2="32" y2="32">
+              <stop offset="0" stop-color="#38BDF8"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+            <path d="M16 2 28 9v14L16 30 4 23V9z" stroke="url(#arx-lg2)" stroke-width="2" fill="rgba(56,189,248,.06)"/>
+            <path d="M11.5 11.5 20.5 20.5M20.5 11.5 11.5 20.5" stroke="url(#arx-lg2)" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+          <span class="logo-text" style="font-size:24px">ARENA<span class="x">X</span></span>
+          <span class="land-kicker" style="margin-left:6px">DBMS Mini-Project</span>
+        </div>
+
+        <h1 class="land-title">Automated Tournament <span class="grad-text">Management</span></h1>
+        <p class="land-sub">Create tournaments. Build brackets. Track winners. Let ArenaX handle the rest.</p>
+
+        <div class="land-features">
+          <div class="land-feat">
+            <span class="lf-ico"><span data-icon="gitBranch"></span></span>
+            <div><b>Auto-generated brackets</b><span>The moment capacity fills, the tournament LOCKS and every match row is inserted — wired by a self-referencing <code class="mono" style="font-size:11px;color:#7DD3FC">next_match_id</code> foreign key.</span></div>
+          </div>
+          <div class="land-feat">
+            <span class="lf-ico"><span data-icon="database"></span></span>
+            <div><b>Constraints you can see</b><span>Capacity checks, unique registrations and roster limits are enforced in the database — and surfaced in the UI as live counters and progress.</span></div>
+          </div>
+          <div class="land-feat">
+            <span class="lf-ico"><span data-icon="zap"></span></span>
+            <div><b>Atomic winner propagation</b><span>Declaring a winner runs one transaction: complete the match, advance the winner, recalculate tournament state — COMMIT or ROLLBACK.</span></div>
+          </div>
+        </div>
+
+        <div class="land-flow" aria-label="Core workflow">
+          <span class="lf-step">REGISTER</span><span class="lf-arrow">→</span>
+          <span class="lf-step hot">LOCK</span><span class="lf-arrow">→</span>
+          <span class="lf-step">BRACKET</span><span class="lf-arrow">→</span>
+          <span class="lf-step hot">WINNERS</span><span class="lf-arrow">→</span>
+          <span class="lf-step">🏆 CHAMPION</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ RIGHT · AUTH ============================ -->
+    <section class="land-right">
+      <div class="auth-card" id="auth-card">
+        <h1 class="auth-title" id="auth-title">Sign in to ArenaX</h1>
+        <p class="auth-sub" id="auth-sub">Players manage teams · Admins run tournaments</p>
+
+        <!-- ---------------- SIGN IN ---------------- -->
+        <div id="view-signin">
+          <form class="auth-form" id="login-form" action="javascript:void(0);" onsubmit="return false;" novalidate>
+            <div class="field">
+              <span class="field-label" id="login-role-label">I am a…</span>
+              <div class="segmented" id="login-role-seg" style="width:100%" role="radiogroup" aria-labelledby="login-role-label">
+                <button type="button" class="seg-btn active" data-role="PLAYER" role="radio" aria-checked="true" style="flex:1;justify-content:center"><span data-icon="user"></span>Player</button>
+                <button type="button" class="seg-btn" data-role="ADMIN" role="radio" aria-checked="false" style="flex:1;justify-content:center"><span data-icon="shield"></span>Admin</button>
+              </div>
+              <input type="hidden" id="login-role" value="PLAYER">
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="login-username">Username or email</label>
+              <input class="input" id="login-username" name="username" placeholder="alex" autocomplete="username" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="login-password">Password</label>
+              <div class="pw-wrap">
+                <input class="input" id="login-password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+                <button type="button" class="icon-btn pw-toggle" aria-label="Show password"><span data-icon="eye"></span></button>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <label class="checkbox-row"><input type="checkbox" id="remember-me" checked> Remember me</label>
+              <a href="#" id="forgot-link" style="font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600">Forgot password?</a>
+            </div>
+
+            <div id="login-form-error"></div>
+            <button type="submit" id="login-submit-btn" class="btn btn-primary btn-lg btn-block">Sign in as Player <span data-icon="arrowRight"></span></button>
+          </form>
+
+          <div class="auth-divider" style="margin-top:20px">or</div>
+          <div style="display:flex;gap:9px;margin-top:6px">
+            <button class="btn btn-outline btn-sm" style="flex:1" data-mode="signup" data-role="PLAYER"><span data-icon="userPlus"></span>Create Player Account</button>
+            <button class="btn btn-outline btn-sm" style="flex:1" data-mode="signup" data-role="ADMIN"><span data-icon="shield"></span>Create Admin Account</button>
+          </div>
+        </div>
+
+        <!-- ---------------- SIGN UP ---------------- -->
+        <div id="view-signup" style="display:none">
+          <form class="auth-form" id="signup-form" action="javascript:void(0);" onsubmit="return false;" novalidate>
+            <div class="field">
+              <span class="field-label" id="signup-role-label">Account type</span>
+              <div class="segmented" id="signup-role-seg" style="width:100%" role="radiogroup" aria-labelledby="signup-role-label">
+                <button type="button" class="seg-btn active" data-role="PLAYER" role="radio" aria-checked="true" style="flex:1;justify-content:center"><span data-icon="user"></span>Player</button>
+                <button type="button" class="seg-btn" data-role="ADMIN" role="radio" aria-checked="false" style="flex:1;justify-content:center"><span data-icon="shield"></span>Admin</button>
+              </div>
+              <input type="hidden" id="signup-role" value="PLAYER">
+              <span class="field-hint">Stored as <code class="mono">users.role</code> · CHECK ∈ (PLAYER, ADMIN)</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="signup-name">Full name</label>
+              <input class="input" id="signup-name" name="full_name" placeholder="Alex Mathew" autocomplete="name">
+            </div>
+            <div class="field">
+              <label class="field-label" for="signup-username">Username *</label>
+              <input class="input" id="signup-username" name="username" placeholder="alex" autocomplete="username" required>
+              <span class="field-hint">3–20 chars · letters, numbers, underscore · UNIQUE</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="signup-email">Email *</label>
+              <input class="input" id="signup-email" name="email" type="email" placeholder="alex@campus.edu" autocomplete="email" required>
+              <span class="field-hint">UNIQUE — duplicate emails are rejected</span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="signup-password">Password *</label>
+              <div class="pw-wrap">
+                <input class="input" id="signup-password" name="password" type="password" placeholder="min. 6 characters" autocomplete="new-password" required>
+                <button type="button" class="icon-btn pw-toggle" aria-label="Show password"><span data-icon="eye"></span></button>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="signup-confirm">Confirm password *</label>
+              <div class="pw-wrap">
+                <input class="input" id="signup-confirm" name="confirm" type="password" placeholder="repeat password" autocomplete="new-password" required>
+                <button type="button" class="icon-btn pw-toggle" aria-label="Show password"><span data-icon="eye"></span></button>
+              </div>
+            </div>
+            <div id="signup-form-error"></div>
+            <button type="submit" id="signup-submit-btn" class="btn btn-primary btn-lg btn-block">Create account <span data-icon="arrowRight"></span></button>
+          </form>
+          <div style="margin-top:16px;text-align:center;font-size:13px;color:var(--muted)">
+            Already have an account?
+            <a href="#" data-mode="signin" style="color:var(--accent);font-weight:600;text-decoration:none">Sign in</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast-root" class="fixed z-[90] top-4 right-4 flex flex-col gap-2 w-[360px] max-w-[92vw]" aria-live="polite"></div>
+  <div id="modal-root"></div>
+
+  <script src="js/ui.js?v=30"></script>
+  <script src="js/api.js?v=30"></script>
+  <script src="js/auth.js?v=30"></script>
+</body>
+</html>
