@@ -120,10 +120,11 @@ def create_team(payload: TeamCreateRequest, current_user: dict = Depends(get_cur
 
     with get_db_cursor(commit=True) as (cursor, conn):
         cursor.execute(
-            "INSERT INTO teams (name, tag, captain_id) VALUES (%s, %s, %s)",
+            "INSERT INTO teams (name, tag, captain_id) VALUES (%s, %s, %s) RETURNING id",
             (clean_name, clean_tag, current_user["id"])
         )
-        team_id = cursor.lastrowid
+        t_row = cursor.fetchone()
+        team_id = t_row["id"] if isinstance(t_row, dict) else t_row[0]
         cursor.execute(
             "INSERT INTO team_members (team_id, user_id, role) VALUES (%s, %s, 'CAPTAIN')",
             (team_id, current_user["id"])
@@ -142,10 +143,11 @@ def create_team(payload: TeamCreateRequest, current_user: dict = Depends(get_cur
                     from auth_utils import hash_password
                     default_pw = hash_password("arenax123")
                     cursor.execute(
-                        "INSERT INTO users (username, email, password_hash, full_name, role, status) VALUES (%s, %s, %s, %s, 'PLAYER', 'ACTIVE')",
+                        "INSERT INTO users (username, email, password_hash, full_name, role, status) VALUES (%s, %s, %s, %s, 'PLAYER', 'ACTIVE') RETURNING id",
                         (m_clean.lower().replace(" ", "_"), f"{m_clean.lower().replace(' ', '_')}@arenax.gg", default_pw, m_clean)
                     )
-                    uid = cursor.lastrowid
+                    u_row = cursor.fetchone()
+                    uid = u_row["id"] if isinstance(u_row, dict) else u_row[0]
                 else:
                     uid = m_user["id"]
 

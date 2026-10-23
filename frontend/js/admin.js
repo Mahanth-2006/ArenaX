@@ -258,6 +258,34 @@ const Admin = (() => {
               <span style="font-size:11.5px;color:var(--faint)">Must be an even integer &ge; 2</span>
             </div>
           </div>
+          <div class="field" style="background:rgba(15,23,42,0.4);border:1px solid var(--edge);border-radius:10px;padding:14px">
+            <label class="field-label" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Required Team Roster Size *</span>
+              <span class="mono" style="font-size:11px;color:var(--accent)" id="ct-size-summary">2 to 5 members</span>
+            </label>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button type="button" class="btn btn-outline btn-sm active" id="btn-mode-range" style="flex:1">Range (Min – Max)</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-mode-fixed" style="flex:1">Fixed Size (Exact)</button>
+            </div>
+            
+            <div id="ct-size-range-wrap" style="display:flex;align-items:center;gap:12px">
+              <div style="flex:1">
+                <span style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Min players (2–5):</span>
+                <input type="number" id="ct-min-size" class="input" min="2" max="5" value="2" style="font-family:'JetBrains Mono',monospace">
+              </div>
+              <span style="color:var(--faint);font-weight:700;margin-top:18px">to</span>
+              <div style="flex:1">
+                <span style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Max players (2–5):</span>
+                <input type="number" id="ct-max-size" class="input" min="2" max="5" value="5" style="font-family:'JetBrains Mono',monospace">
+              </div>
+            </div>
+
+            <div id="ct-size-fixed-wrap" style="display:none">
+              <span style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px">Exact team size (2–5 players):</span>
+              <input type="number" id="ct-fixed-size" class="input" min="2" max="5" value="3" style="font-family:'JetBrains Mono',monospace">
+            </div>
+            <span class="field-hint" style="margin-top:8px">Players can only register teams that satisfy this exact roster constraint.</span>
+          </div>
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="field">
               <label class="field-label" for="ct-deadline">Registration deadline</label>
@@ -323,6 +351,48 @@ const Admin = (() => {
     });
     drawPreview();
 
+    /* Team size constraint mode toggles */
+    let sizeMode = 'range';
+    const btnRange = m.querySelector('#btn-mode-range');
+    const btnFixed = m.querySelector('#btn-mode-fixed');
+    const rangeWrap = m.querySelector('#ct-size-range-wrap');
+    const fixedWrap = m.querySelector('#ct-size-fixed-wrap');
+    const sizeSummary = m.querySelector('#ct-size-summary');
+    const minInput = m.querySelector('#ct-min-size');
+    const maxInput = m.querySelector('#ct-max-size');
+    const fixedInput = m.querySelector('#ct-fixed-size');
+
+    const updateSizeSummary = () => {
+      if (sizeMode === 'fixed') {
+        const val = parseInt(fixedInput.value, 10) || 3;
+        sizeSummary.textContent = `Exactly ${val} members`;
+      } else {
+        const minVal = parseInt(minInput.value, 10) || 2;
+        const maxVal = parseInt(maxInput.value, 10) || 5;
+        sizeSummary.textContent = minVal === maxVal ? `Exactly ${minVal} members` : `${minVal} to ${maxVal} members`;
+      }
+    };
+
+    btnRange.addEventListener('click', () => {
+      sizeMode = 'range';
+      btnRange.classList.add('active');
+      btnFixed.classList.remove('active');
+      rangeWrap.style.display = 'flex';
+      fixedWrap.style.display = 'none';
+      updateSizeSummary();
+    });
+
+    btnFixed.addEventListener('click', () => {
+      sizeMode = 'fixed';
+      btnFixed.classList.add('active');
+      btnRange.classList.remove('active');
+      fixedWrap.style.display = 'block';
+      rangeWrap.style.display = 'none';
+      updateSizeSummary();
+    });
+
+    [minInput, maxInput, fixedInput].forEach(inp => inp.addEventListener('input', updateSizeSummary));
+
     m.querySelector('#ct-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -341,6 +411,21 @@ const Admin = (() => {
       const deadline = form.querySelector('#ct-deadline').value;
       const start = form.querySelector('#ct-start').value;
       if (deadline && start && start < deadline) { err('#ct-start', 'Start date cannot be before the registration deadline.'); bad = true; }
+
+      let min_team_size = 2;
+      let max_team_size = 5;
+      if (sizeMode === 'fixed') {
+        const f = parseInt(fixedInput.value, 10) || 3;
+        min_team_size = f;
+        max_team_size = f;
+      } else {
+        min_team_size = parseInt(minInput.value, 10) || 2;
+        max_team_size = parseInt(maxInput.value, 10) || 5;
+        if (min_team_size > max_team_size) {
+          const temp = min_team_size; min_team_size = max_team_size; max_team_size = temp;
+        }
+      }
+
       if (bad) { UI.toast({ type: 'error', title: 'Validation failed', message: 'Fix the highlighted fields (same rules the server enforces).' }); return; }
 
       const btn = m.querySelector('#ct-submit');
@@ -350,10 +435,15 @@ const Admin = (() => {
           name,
           description: form.querySelector('#ct-desc').value.trim(),
           capacity,
+          min_team_size,
+          max_team_size,
+          team_size_mode: sizeMode,
+          team_size: sizeMode === 'fixed' ? min_team_size : null,
           registration_deadline: deadline ? new Date(deadline + 'T23:59:59').toISOString() : null,
           start_date: start ? new Date(start + 'T00:00:00').toISOString() : null,
         });
-        UI.toast({ type: 'success', title: 'Tournament created ✓', message: `${res.tournament.name} is now REGISTRATION OPEN (0/${capacity}).` });
+        const sizeMsg = min_team_size === max_team_size ? `Exactly ${min_team_size} members` : `${min_team_size}–${max_team_size} members`;
+        UI.toast({ type: 'success', title: 'Tournament created ✓', message: `${res.tournament.name} open (0/${capacity} teams, ${sizeMsg}).` });
         successModal(res.tournament);
       } catch (e2) {
         btn.classList.remove('loading'); btn.disabled = false;
@@ -591,25 +681,23 @@ const Admin = (() => {
   async function viewUsers() {
     UI.setAdminTitle('Users');
     const m = mount();
-    m.innerHTML = UI.skelTable(6);
+    m.innerHTML = UI.skelTable(4);
     let all = [], search = '';
     try { all = await API.getUsers(); } catch (err) { m.innerHTML = UI.errorState(err, 'location.reload()'); return; }
     const draw = () => {
-      const list = search ? all.filter(u => u.username.includes(search.toLowerCase()) || u.email.includes(search.toLowerCase()) || (u.full_name || '').toLowerCase().includes(search.toLowerCase())) : all;
+      const list = search ? all.filter(u => u.username.includes(search.toLowerCase()) || (u.full_name || '').toLowerCase().includes(search.toLowerCase())) : all;
       m.innerHTML = `
-        ${UI.pageHeader({ title: 'Users', sub: `${all.length} rows in <code class="mono" style="font-size:11.5px">users</code> — role CHECK ∈ (PLAYER, ADMIN), UNIQUE username & email.` })}
+        ${UI.pageHeader({ title: 'Users', sub: `${all.length} registered accounts — role CHECK ∈ (PLAYER, ADMIN), UNIQUE username.` })}
         <div style="max-width:380px;margin-bottom:18px">${UI.searchInput('Search users...', 'u-search', search)}</div>
         ${list.length ? `
         <div class="tbl-wrap fade-up">
           <table class="tbl">
-            <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Team</th><th>Joined</th><th>Status</th></tr></thead>
+            <thead><tr><th>Username</th><th>Role</th><th>Joined</th><th>Status</th></tr></thead>
             <tbody>
               ${list.map(u => `
                 <tr>
                   <td><div style="display:flex;align-items:center;gap:10px">${UI.avatar(u.full_name || u.username, { size: 'sm' })}<span class="td-strong">@${UI.esc(u.username)}</span></div></td>
-                  <td class="mono" style="font-size:11.5px;color:var(--muted)">${UI.esc(u.email)}</td>
                   <td>${UI.roleBadge(u.role)}</td>
-                  <td>${u.team ? `<span class="chip">${UI.icon('users', 'w-3.5 h-3.5')} ${UI.esc(u.team.name)}</span>` : '<span style="color:var(--faint);font-size:12px">free agent</span>'}</td>
                   <td>${UI.fmtDate(u.created_at)}</td>
                   <td><span class="badge badge-win"><span class="badge-dot"></span>${UI.esc(u.status)}</span></td>
                 </tr>`).join('')}

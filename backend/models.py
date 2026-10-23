@@ -83,6 +83,10 @@ class TournamentCreateRequest(BaseModel):
     description: Optional[str] = ""
     capacity: Optional[int] = None
     max_teams: Optional[int] = None
+    min_team_size: Optional[int] = 2
+    max_team_size: Optional[int] = 5
+    team_size_mode: Optional[str] = None
+    team_size: Optional[int] = None
     start_date: Optional[str] = None
     registration_deadline: Optional[str] = None
 
@@ -94,6 +98,16 @@ class TournamentCreateRequest(BaseModel):
         if cap < 2 or cap % 2 != 0:
             raise ValueError("Capacity must be an even integer greater than or equal to 2")
         return cap
+
+    def get_team_size_range(self) -> tuple[int, int]:
+        if self.team_size_mode == "fixed" and self.team_size is not None:
+            sz = max(1, min(5, int(self.team_size)))
+            return sz, sz
+        min_sz = max(1, min(5, int(self.min_team_size))) if self.min_team_size is not None else 2
+        max_sz = max(1, min(5, int(self.max_team_size))) if self.max_team_size is not None else 5
+        if min_sz > max_sz:
+            min_sz, max_sz = max_sz, min_sz
+        return min_sz, max_sz
 
 class TournamentRegistrationRequest(BaseModel):
     team_id: Optional[int] = None

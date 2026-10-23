@@ -29,7 +29,7 @@ def seed_order(n: int) -> List[int]:
 
 def generate_bracket_tree(cursor, tournament_id: int, capacity: int, registered_team_ids: List[int]):
     """
-    Constructs a complete single-elimination tournament bracket tree in MySQL.
+    Constructs a complete single-elimination tournament bracket tree in PostgreSQL.
     Populates sequential match numbers, round names, abbreviations, and self-referencing next_match_id / next_match_slot.
     """
     p = 1
@@ -59,10 +59,12 @@ def generate_bracket_tree(cursor, tournament_id: int, capacity: int, registered_
                     tournament_id, number, round_number, match_order, round_name, abbr, 
                     team1_id, team2_id, status
                 ) VALUES (%s, %s, %s, %s, %s, %s, NULL, NULL, 'PENDING')
+                RETURNING id
                 """,
                 (tournament_id, match_number, round_num, i + 1, r_name, r_abbr)
             )
-            m_id = cursor.lastrowid
+            row = cursor.fetchone()
+            m_id = row["id"] if isinstance(row, dict) else row[0]
             round_matches.append(m_id)
 
         per_round.append(round_matches)

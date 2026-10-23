@@ -10,33 +10,57 @@ from database import init_db_pool, query_one
 from routes import auth, teams, tournaments, matches, meta
 
 def auto_init_database():
-    """Automatically applies schema.sql and seeds initial data if database is fresh."""
+    """Ensures PostgreSQL schema is fully initialized and cleanly migrated."""
     try:
         from database import query_one, get_db_cursor
-        check = query_one("SHOW TABLES LIKE 'users'")
-        if not check:
-            print("[DB-SETUP] Empty database detected. Initializing schema.sql...")
-            schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
-            if os.path.exists(schema_path):
-                with open(schema_path, "r", encoding="utf-8") as f:
-                    sql_content = f.read()
-                statements = [s.strip() for s in sql_content.split(";") if s.strip()]
-                with get_db_cursor(commit=True) as (cursor, conn):
-                    for stmt in statements:
-                        upper_stmt = stmt.upper()
-                        if upper_stmt.startswith("CREATE DATABASE") or upper_stmt.startswith("USE "):
-                            continue
-                        try:
-                            cursor.execute(stmt)
-                        except Exception as e:
-                            pass
-                print("[DB-SETUP] Tables created successfully.")
+        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+        if os.path.exists(schema_path):
+            with open(schema_path, "r", encoding="utf-8") as f:
+                sql_content = f.read()
+            statements = [s.strip() for s in sql_content.split(";") if s.strip()]
+            with get_db_cursor(commit=True) as (cursor, conn):
+                for stmt in statements:
+                    try:
+                        cursor.execute(stmt)
+                    except Exception:
+                        pass
+
+        # Ensure all columns exist on tables (handles partial pre-created schemas)
+        with get_db_cursor(commit=True) as (cursor, conn):
+            alter_statements = [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(100);",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE';",
+                "ALTER TABLE teams ADD COLUMN IF NOT EXISTS tag VARCHAR(20);",
+                "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS id SERIAL;",
+                "ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'MEMBER';",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS name VARCHAR(150);",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS description TEXT;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS capacity INT DEFAULT 4;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS format VARCHAR(50) DEFAULT 'SINGLE_ELIMINATION';",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS organizer_id INT REFERENCES users(id) ON DELETE SET NULL;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS champion_team_id INT REFERENCES teams(id) ON DELETE SET NULL;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS min_team_size INT DEFAULT 2;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS max_team_size INT DEFAULT 5;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS start_date VARCHAR(100);",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS registration_deadline VARCHAR(100);",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS locked_at TIMESTAMP;",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;",
+                "ALTER TABLE tournament_registrations ADD COLUMN IF NOT EXISTS seed INT;",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS number INT;",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS round INT DEFAULT 1;",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS round_number INT DEFAULT 1;",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS round_name VARCHAR(50);",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS abbr VARCHAR(20);",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS next_match_slot INT;",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;",
+                "ALTER TABLE transaction_log ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"
+            ]
+            for stmt in alter_statements:
                 try:
-                    import seed_data
-                    seed_data.seed()
-                    print("[DB-SETUP] Initial users (admin/admin123) and tournaments seeded.")
-                except Exception as se:
-                    print(f"[DB-SETUP] Seed notice: {se}")
+                    cursor.execute(stmt)
+                except Exception:
+                    pass
+        print("[DB-SETUP] PostgreSQL schema and columns verified successfully.")
     except Exception as e:
         print(f"[DB-SETUP] Auto-init skipped or deferred: {e}")
 

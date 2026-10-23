@@ -37,12 +37,34 @@ def build_tournament_summary(t: dict, viewer: Optional[dict] = None) -> dict:
             organizer_name = org.get("full_name") or org["username"]
 
     viewer_team = None
+    viewer_team_name = None
     my_reg = False
     if viewer:
-        m_row = query_one("SELECT team_id FROM team_members WHERE user_id = %s", (viewer["id"],))
-        if m_row:
-            viewer_team = m_row["team_id"]
-            my_reg = any(r["team_id"] == viewer_team for r in regs)
+        v_reg = query_one("""
+            SELECT tr.team_id, t.name AS team_name
+            FROM tournament_registrations tr
+            JOIN teams t ON tr.team_id = t.id
+            LEFT JOIN team_members tm ON tr.team_id = tm.team_id AND tm.user_id = %s
+            WHERE tr.tournament_id = %s AND (t.captain_id = %s OR tm.user_id = %s)
+            LIMIT 1
+        """, (viewer["id"], t_id, viewer["id"], viewer["id"]))
+        if v_reg:
+            viewer_team = v_reg["team_id"]
+            viewer_team_name = v_reg["team_name"]
+            my_reg = True
+        else:
+            m_row = query_one("SELECT id AS team_id, name AS team_name FROM teams WHERE captain_id = %s ORDER BY id DESC LIMIT 1", (viewer["id"],))
+            if not m_row:
+                m_row = query_one("""
+                    SELECT tm.team_id, t.name AS team_name 
+                    FROM team_members tm 
+                    JOIN teams t ON tm.team_id = t.id 
+                    WHERE tm.user_id = %s 
+                    ORDER BY tm.id DESC LIMIT 1
+                """, (viewer["id"],))
+            if m_row:
+                viewer_team = m_row["team_id"]
+                viewer_team_name = m_row["team_name"]
 
     capacity = t.get("capacity") or t.get("max_teams") or 4
     p = 1
@@ -56,6 +78,10 @@ def build_tournament_summary(t: dict, viewer: Optional[dict] = None) -> dict:
 
     name = t.get("name") or t.get("title") or "Tournament"
 
+    min_size = t.get("min_team_size") or 2
+    max_size = t.get("max_team_size") or 5
+    size_label = f"Exactly {min_size} Players" if min_size == max_size else f"{min_size}–{max_size} Players"
+
     return {
         "id": t["id"],
         "name": name,
@@ -64,6 +90,9 @@ def build_tournament_summary(t: dict, viewer: Optional[dict] = None) -> dict:
         "format": t.get("format") or "SINGLE_ELIMINATION",
         "capacity": capacity,
         "max_teams": capacity,
+        "min_team_size": min_size,
+        "max_team_size": max_size,
+        "team_size_label": size_label,
         "status": t["status"],
         "organizer_id": t.get("organizer_id"),
         "organizer_name": organizer_name,
@@ -81,6 +110,7 @@ def build_tournament_summary(t: dict, viewer: Optional[dict] = None) -> dict:
         "winner_team_name": champ_team,
         "my_team_registered": my_reg,
         "my_team_id": viewer_team,
+        "my_team_name": viewer_team_name,
         "total_rounds": total_rounds,
         "current_round": current_round,
         "matches_completed": len(completed_matches),
@@ -170,17 +200,18 @@ def create_tournament(payload: TournamentCreateRequest, current_user: dict = Dep
         )
 
     desc = payload.description or ""
-    start_date = payload.start_date or ""
-    reg_dl = payload.registration_deadline or ""
+    start_date = payload.start_date.strip() if payload.start_date and payload.start_date.strip() else None
+    reg_dl = payload.registration_deadline.strip() if payload.registration_deadline and payload.registration_deadline.strip() else None
+    min_sz, max_sz = payload.get_team_size_range()
 
     tourn_id = execute_dml(
         """
         INSERT INTO tournaments (
-            name, title, description, capacity, max_teams, format, status, 
+            name, title, description, capacity, max_teams, min_team_size, max_team_size, format, status, 
             organizer_id, start_date, registration_deadline
-        ) VALUES (%s, %s, %s, %s, %s, 'SINGLE_ELIMINATION', 'REGISTRATION_OPEN', %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'SINGLE_ELIMINATION', 'REGISTRATION_OPEN', %s, %s, %s)
         """,
-        (clean_name, clean_name, desc, capacity, capacity, current_user["id"], start_date, reg_dl),
+        (clean_name, clean_name, desc, capacity, capacity, min_sz, max_sz, current_user["id"], start_date, reg_dl),
         return_last_id=True
     )
 
@@ -188,7 +219,7 @@ def create_tournament(payload: TournamentCreateRequest, current_user: dict = Dep
         "create_tournament",
         current_user["username"],
         [
-            f"INSERT INTO tournaments (name, capacity, status, organizer_id) VALUES ('{clean_name}', {capacity}, 'REGISTRATION_OPEN', {current_user['id']});"
+            f"INSERT INTO tournaments (name, capacity, min_team_size, max_team_size, status, organizer_id) VALUES ('{clean_name}', {capacity}, {min_sz}, {max_sz}, 'REGISTRATION_OPEN', {current_user['id']});"
         ]
     )
 
@@ -223,6 +254,22 @@ def register_team_for_tournament(
     if not team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "NO_TEAM", "message": "Team not found."})
 
+    # Validate team member count against tournament roster constraints
+    m_count_row = query_one("SELECT COUNT(*) AS total FROM team_members WHERE team_id = %s", (team_id,))
+    member_count = m_count_row["total"] if m_count_row else 0
+    min_req = t.get("min_team_size") or 2
+    max_req = t.get("max_team_size") or 5
+    req_str = f"exactly {min_req}" if min_req == max_req else f"{min_req} to {max_req}"
+
+    if member_count < min_req or member_count > max_req:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "ROSTER_SIZE_INVALID",
+                "message": f"Team '{team['name']}' has {member_count} member(s). This tournament requires {req_str} members to participate."
+            }
+        )
+
     # Team validation: any team leader / creator can register their team
     with get_db_cursor(commit=True) as (cursor, conn):
         cursor.execute("SELECT id, name, capacity, status FROM tournaments WHERE id = %s FOR UPDATE", (real_tourn_id,))
@@ -235,13 +282,88 @@ def register_team_for_tournament(
                 detail={"code": "REGISTRATION_CLOSED", "message": msg}
             )
 
-        # Check duplicate
+        # Check duplicate team registration
         cursor.execute("SELECT id FROM tournament_registrations WHERE tournament_id = %s AND team_id = %s", (real_tourn_id, team_id))
         if cursor.fetchone():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"code": "DUPLICATE_REGISTRATION", "message": "This team is already registered for this tournament (UNIQUE(tournament_id, team_id))."}
             )
+
+        # Check if the registering user (current_user) is already participating in this tournament on any team
+        cursor.execute("""
+            SELECT t.name AS existing_team_name
+            FROM tournament_registrations tr
+            JOIN teams t ON tr.team_id = t.id
+            LEFT JOIN team_members tm ON tr.team_id = tm.team_id AND tm.user_id = %s
+            WHERE tr.tournament_id = %s AND (t.captain_id = %s OR tm.user_id = %s)
+            LIMIT 1
+        """, (current_user["id"], real_tourn_id, current_user["id"], current_user["id"]))
+        user_already = cursor.fetchone()
+        if user_already:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "CAPTAIN_ALREADY_IN_TOURNAMENT",
+                    "message": f"You are already competing in this tournament with team '{user_already['existing_team_name']}'. One player cannot captain or play on 2 different teams in the same tournament."
+                }
+            )
+
+        # 1. Gather all players and captain of the registering team
+        reg_player_map = {}
+        cursor.execute("""
+            SELECT tm.user_id, u.username, COALESCE(u.full_name, u.username) AS display_name
+            FROM team_members tm
+            JOIN users u ON tm.user_id = u.id
+            WHERE tm.team_id = %s
+        """, (team_id,))
+        for p in cursor.fetchall():
+            reg_player_map[int(p["user_id"])] = dict(p)
+
+        team_cap_id = int(team["captain_id"])
+        if team_cap_id not in reg_player_map:
+            cursor.execute("SELECT id AS user_id, username, COALESCE(full_name, username) AS display_name FROM users WHERE id = %s", (team_cap_id,))
+            cap_p = cursor.fetchone()
+            if cap_p:
+                reg_player_map[team_cap_id] = dict(cap_p)
+
+        # 2. Check if any player or captain is already participating in this tournament on another team
+        cursor.execute("""
+            SELECT tm.user_id, u.username, COALESCE(u.full_name, u.username) AS display_name, t.name AS existing_team_name
+            FROM tournament_registrations tr
+            JOIN team_members tm ON tr.team_id = tm.team_id
+            JOIN users u ON tm.user_id = u.id
+            JOIN teams t ON tr.team_id = t.id
+            WHERE tr.tournament_id = %s AND tr.team_id != %s
+        """, (real_tourn_id, team_id))
+        conflicts = [dict(c) for c in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT t.captain_id AS user_id, u.username, COALESCE(u.full_name, u.username) AS display_name, t.name AS existing_team_name
+            FROM tournament_registrations tr
+            JOIN teams t ON tr.team_id = t.id
+            JOIN users u ON t.captain_id = u.id
+            WHERE tr.tournament_id = %s AND tr.team_id != %s
+        """, (real_tourn_id, team_id))
+        conflicts.extend([dict(c) for c in cursor.fetchall()])
+
+        for c in conflicts:
+            c_uid = int(c["user_id"])
+            if c_uid in reg_player_map:
+                conflicted_info = reg_player_map[c_uid]
+                is_cap = (c_uid == team_cap_id)
+                role_label = "Captain" if is_cap else "Player"
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "PLAYER_ALREADY_IN_TOURNAMENT",
+                        "message": (
+                            f"{role_label} @{conflicted_info['username']} ({conflicted_info['display_name']}) "
+                            f"is already competing in this tournament with team '{c['existing_team_name']}'. "
+                            f"All team members and captains must be new players who do not already belong to another participating team."
+                        )
+                    }
+                )
 
         # Check capacity
         cursor.execute("SELECT COUNT(*) AS total FROM tournament_registrations WHERE tournament_id = %s", (real_tourn_id,))

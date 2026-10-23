@@ -177,7 +177,6 @@ const Auth = (() => {
         if (sub) sub.textContent = isAdm
           ? 'Enter admin credentials to configure tournaments, brackets, and matches'
           : 'Enter player credentials to create teams, manage rosters, and compete';
-        if (regBtn) regBtn.innerHTML = `${isAdm ? 'Register as Admin' : 'Create Player Account'} ${UI.icon('arrowRight')}`;
       } else {
         if (title) title.textContent = isAdm ? 'Admin Control Center Sign In' : 'Player Sign In';
         if (sub) sub.textContent = isAdm ? 'Enter admin username & password to run tournaments' : 'Enter player username & password to manage teams & compete';
@@ -251,34 +250,20 @@ const Auth = (() => {
     };
 
     /* ---------- LOGIN ---------- */
-    const loginUsernameInput = document.getElementById('login-username');
-    if (loginUsernameInput) {
-      loginUsernameInput.addEventListener('input', (e) => {
-        const val = e.target.value.trim().toLowerCase();
-        if (val === 'admin' && segValue('login-role-seg') !== 'ADMIN') {
-          setSegRole('ADMIN');
-        }
-      });
-    }
-
     const loginForm = document.getElementById('login-form');
     loginForm.addEventListener('submit', withLoading(loginForm.querySelector('[type=submit]'), async () => {
       const formErr = document.getElementById('login-form-error');
       formErr.innerHTML = '';
       showFieldError(loginForm, {});
       const uname = document.getElementById('login-username').value.trim();
-      let roleToUse = segValue('login-role-seg');
-      if (uname.toLowerCase() === 'admin' && roleToUse !== 'ADMIN') {
-        roleToUse = 'ADMIN';
-        setSegRole('ADMIN');
-      }
+      const roleToUse = segValue('login-role-seg');
 
       try {
         const u = await Auth.login({
           username: uname,
           password: document.getElementById('login-password').value,
           role: roleToUse,
-          remember: document.getElementById('remember-me').checked,
+          remember: true,
         });
         UI.toast({ type: 'success', title: `Welcome back, ${u.username}!`, message: `Signed in as ${u.role.toLowerCase()}.` });
         const next = params.get('next');

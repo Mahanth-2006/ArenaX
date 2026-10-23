@@ -17,7 +17,8 @@ const Dashboard = (() => {
     let actionBtn = `<a class="btn btn-outline btn-sm" style="flex:1" href="tournament.html?id=${t.id}">${UI.icon('eye')}View Tournament</a>`;
     if (open) {
       if (t.my_team_registered) {
-        actionBtn += `<button class="btn btn-success btn-sm" style="flex:1" disabled>${UI.icon('checkCircle')}Registered ✓</button>`;
+        const teamLbl = t.my_team_name ? ` (${t.my_team_name})` : '';
+        actionBtn += `<button class="btn btn-success btn-sm" style="flex:1" disabled>${UI.icon('checkCircle')}Registered${teamLbl} ✓</button>`;
       } else if (full) {
         actionBtn += `<button class="btn btn-sm" style="flex:1" disabled title="This tournament has reached its maximum capacity.">${UI.icon('ban')}Full</button>`;
       } else {
@@ -49,8 +50,8 @@ const Dashboard = (() => {
             <div class="v">${t.capacity}-Team Knockout</div>
           </div>
           <div class="t-meta">
-            <div class="k">${open ? 'Status' : t.status === 'COMPLETED' ? 'Completed' : 'Started'}</div>
-            <div class="v">${t.status}</div>
+            <div class="k">Required Roster</div>
+            <div class="v" style="color:var(--accent)">${UI.esc(t.team_size_label || `${t.min_team_size || 2}–${t.max_team_size || 5} Players`)}</div>
           </div>
         </div>
 
@@ -101,33 +102,117 @@ const Dashboard = (() => {
       return;
     }
 
-    const optionsHtml = myTeams.map((tm, idx) => `
-      <label class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;cursor:pointer;background:var(--card);border:1px solid var(--edge)">
-        <input type="radio" name="sel_team" value="${tm.id}" ${idx === 0 ? 'checked' : ''} style="accent-color:var(--accent);width:18px;height:18px">
+    const minSize = t.min_team_size || 2;
+    const maxSize = t.max_team_size || 5;
+    const sizeReqText = minSize === maxSize ? `exactly ${minSize} members` : `${minSize} to ${maxSize} members`;
+
+    let currentRegs = [];
+    try {
+      const fullT = await API.getTournament(t.id);
+      currentRegs = (fullT && fullT.registrations) || [];
+    } catch (err) {
+      console.error('Failed to fetch tournament registrations:', err);
+    }
+
+    const registeredPlayerMap = new Map();
+    const registeredTeamIds = new Set();
+    currentRegs.forEach(reg => {
+      if (reg.team) {
+        registeredTeamIds.add(Number(reg.team.id));
+        const tName = reg.team.name;
+        if (reg.team.captain_id) {
+          const capName = (reg.team.captain && (reg.team.captain.full_name || reg.team.captain.username)) || reg.team.captain_name || 'Captain';
+          registeredPlayerMap.set(Number(reg.team.captain_id), { name: capName, teamName: tName, isCap: true });
+        }
+        if (reg.team.members) {
+          reg.team.members.forEach(m => {
+            const mName = m.full_name || m.username || 'Player';
+            registeredPlayerMap.set(Number(m.user_id), { name: mName, teamName: tName, isCap: m.role === 'CAPTAIN' });
+          });
+        }
+      }
+    });
+
+    const currentUserId = state.user ? Number(state.user.id) : null;
+    const userAlreadyIn = currentUserId && registeredPlayerMap.has(currentUserId);
+    const userConfTeam = userAlreadyIn ? registeredPlayerMap.get(currentUserId).teamName : null;
+
+    let firstEligibleFound = false;
+    const optionsHtml = myTeams.map((tm) => {
+      let isEligible = true;
+      let reason = '';
+      const tid = Number(tm.id);
+      const capId = Number(tm.captain_id);
+
+      if (userAlreadyIn) {
+        isEligible = false;
+        reason = `You are already participating in this tournament with team '${userConfTeam}'. One player cannot captain or play for 2 different teams in the same tournament.`;
+      } else if (registeredTeamIds.has(tid)) {
+        isEligible = false;
+        reason = 'This team is already registered in this tournament.';
+      } else if (tm.member_count < minSize || tm.member_count > maxSize) {
+        isEligible = false;
+        reason = `Roster size (${tm.member_count}) does not satisfy required ${sizeReqText}.`;
+      } else if (capId && registeredPlayerMap.has(capId)) {
+        isEligible = false;
+        const conf = registeredPlayerMap.get(capId);
+        reason = `Captain @${conf.name} is already competing in '${conf.teamName}'. One player cannot captain or play for 2 different teams in the same tournament.`;
+      } else if (tm.members && tm.members.length) {
+        const confMem = tm.members.find(m => registeredPlayerMap.has(Number(m.user_id)));
+        if (confMem) {
+          isEligible = false;
+          const conf = registeredPlayerMap.get(Number(confMem.user_id));
+          const pName = confMem.full_name || confMem.username || conf.name;
+          reason = `Player '${pName}' is already competing in '${conf.teamName}'. All players must be new and not already exist in another team.`;
+        }
+      }
+
+      const isChecked = isEligible && !firstEligibleFound;
+      if (isChecked) firstEligibleFound = true;
+
+      return `
+      <label class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;cursor:${isEligible ? 'pointer' : 'not-allowed'};background:var(--card);border:1px solid ${isEligible ? 'var(--edge)' : 'rgba(239,68,68,0.35)'};opacity:${isEligible ? '1' : '0.65'}">
+        <input type="radio" name="sel_team" value="${tm.id}" ${isChecked ? 'checked' : ''} ${!isEligible ? 'disabled' : ''} style="accent-color:var(--accent);width:18px;height:18px">
         <div style="flex:1">
-          <div style="font-weight:700;color:#fff;font-size:14px">Team ID #${tm.id} · ${UI.esc(tm.name)} <span class="mono" style="font-size:11px;color:var(--accent)">[${UI.esc(tm.tag || '')}]</span></div>
-          <div class="mono" style="font-size:11px;color:var(--faint)">Roster: ${tm.member_count} members ${tm.is_eliminated ? '· <span style="color:var(--danger)">[Eliminated in past match]</span>' : '· Ready'}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700;color:#fff;font-size:14px">Team ID #${tm.id} · ${UI.esc(tm.name)} <span class="mono" style="font-size:11px;color:var(--accent)">[${UI.esc(tm.tag || '')}]</span></div>
+            ${isEligible ? `<span class="badge badge-win" style="font-size:10.5px">✓ Eligible</span>` : `<span class="badge badge-danger" style="font-size:10.5px">❌ Ineligible</span>`}
+          </div>
+          <div class="mono" style="font-size:11px;color:${isEligible ? 'var(--faint)' : 'var(--danger)'};margin-top:2px">
+            Roster: ${tm.member_count} member${tm.member_count === 1 ? '' : 's'} ${!isEligible ? `· ⚠️ ${reason}` : (tm.is_eliminated ? '· [Eliminated in past match]' : '· Ready to compete')}
+          </div>
         </div>
       </label>
-    `).join('');
+    `;
+    }).join('');
 
     const modal = UI.modal({
       title: `Register for "${t.name}"`,
-      subtitle: `Select which team you created to participate in this tournament (${t.registered_count}/${t.capacity} teams registered)`,
+      subtitle: `Roster Requirement: ${t.team_size_label || sizeReqText} (${t.registered_count}/${t.capacity} teams registered)`,
       body: `
         <div>
           <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Select your participating team:</p>
           <form id="team-select-form">
             ${optionsHtml}
           </form>
-          <div class="warn-strip info-strip" style="margin-top:12px">
-            ${UI.icon('database')}<span>When the tournament reaches capacity (${t.capacity} teams), the single-elimination bracket is generated automatically.</span>
-          </div>
+          ${userAlreadyIn ? `
+            <div class="warn-strip danger-strip" style="margin-top:12px">
+              ${UI.icon('xCircle')}<span>You are already participating in this tournament with team <b>${UI.esc(userConfTeam)}</b>. One player cannot captain or enter 2 different teams in the same tournament.</span>
+            </div>
+          ` : (!firstEligibleFound ? `
+            <div class="warn-strip danger-strip" style="margin-top:12px">
+              ${UI.icon('xCircle')}<span>None of your teams can enter: teams must meet the required roster size of <b>${sizeReqText}</b>, all players and captains must be completely new to this tournament, and the same player cannot enter with multiple teams.</span>
+            </div>
+          ` : `
+            <div class="warn-strip info-strip" style="margin-top:12px">
+              ${UI.icon('database')}<span>When the tournament reaches capacity (${t.capacity} teams), the single-elimination bracket is generated automatically.</span>
+            </div>
+          `)}
         </div>
       `,
       footer: `
         <button class="btn btn-ghost" data-close>Cancel</button>
-        <button class="btn btn-primary" id="confirm-team-reg">${UI.icon('zap')}Confirm & Register Team</button>
+        <button class="btn btn-primary" id="confirm-team-reg" ${!firstEligibleFound ? 'disabled' : ''}>${UI.icon('zap')}Confirm & Register Team</button>
       `
     });
 

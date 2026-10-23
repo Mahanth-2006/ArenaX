@@ -6,11 +6,13 @@ from models import UserSignupRequest, UserLoginRequest, TokenResponse, UserRespo
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 def format_user_dict(user: dict) -> dict:
+    name = (user.get("full_name") or "").strip() or user.get("username") or ""
     return {
         "id": user["id"],
         "username": user["username"],
         "email": user["email"],
-        "full_name": user.get("full_name") or user["username"],
+        "full_name": name,
+        "name": name,
         "role": user["role"],
         "status": user.get("status") or "ACTIVE",
         "created_at": str(user["created_at"]) if user.get("created_at") else None
@@ -19,36 +21,41 @@ def format_user_dict(user: dict) -> dict:
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def signup(payload: UserSignupRequest):
+    u_clean = payload.username.strip().lower()
+    e_clean = payload.email.strip().lower()
+
     # Check if username exists
-    if query_one("SELECT id FROM users WHERE username = %s", (payload.username,)):
+    if query_one("SELECT id FROM users WHERE LOWER(username) = %s", (u_clean,)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "VALIDATION_ERROR", "message": "Username already taken (UNIQUE constraint).", "fields": {"username": "Username already taken"}}
+            detail={"code": "VALIDATION_ERROR", "message": "Username already taken.", "fields": {"username": "Username already taken"}}
         )
 
     # Check if email exists
-    if query_one("SELECT id FROM users WHERE email = %s", (payload.email,)):
+    if query_one("SELECT id FROM users WHERE LOWER(email) = %s", (e_clean,)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "VALIDATION_ERROR", "message": "Email already registered (UNIQUE constraint).", "fields": {"email": "Email already registered"}}
+            detail={"code": "VALIDATION_ERROR", "message": "Email already registered.", "fields": {"email": "Email already registered"}}
         )
 
     hashed = hash_password(payload.password)
-    full_name = payload.full_name or payload.username
+    raw_name = (payload.full_name or "").strip()
+    full_name = raw_name if raw_name else payload.username.strip()
+    role = payload.role.upper()
 
     new_user_id = execute_dml(
         """
         INSERT INTO users (username, email, password_hash, full_name, role, status)
         VALUES (%s, %s, %s, %s, %s, 'ACTIVE')
         """,
-        (payload.username.lower(), payload.email.lower(), hashed, full_name, payload.role),
+        (u_clean, e_clean, hashed, full_name, role),
         return_last_id=True
     )
 
     log_transaction(
         "register_user",
-        payload.username,
-        [f"INSERT INTO users (username, email, role, status) VALUES ('{payload.username}', '{payload.email}', '{payload.role}', 'ACTIVE');"]
+        payload.username.strip(),
+        [f"INSERT INTO users (username, email, full_name, role, status) VALUES ('{u_clean}', '{e_clean}', '{full_name}', '{role}', 'ACTIVE');"]
     )
 
     user = query_one("SELECT id, username, email, full_name, role, status, created_at FROM users WHERE id = %s", (new_user_id,))
@@ -64,9 +71,9 @@ def signup(payload: UserSignupRequest):
 
 @router.post("/login")
 def login(payload: UserLoginRequest):
-    u_lower = payload.username.lower()
+    u_lower = payload.username.strip().lower()
     user = query_one(
-        "SELECT id, username, email, password_hash, full_name, role, status, created_at FROM users WHERE username = %s OR email = %s",
+        "SELECT id, username, email, password_hash, full_name, role, status, created_at FROM users WHERE LOWER(username) = %s OR LOWER(email) = %s",
         (u_lower, u_lower)
     )
     if not user:
@@ -81,12 +88,7 @@ def login(payload: UserLoginRequest):
             detail={"code": "INVALID_CREDENTIALS", "message": "Invalid username or password."}
         )
 
-    if payload.role and payload.role.upper() != user["role"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "ROLE_MISMATCH", "message": f"User is registered as {user['role']}, not {payload.role.upper()}."}
-        )
-
+    # Issue token using true role stored in PostgreSQL
     token = create_access_token({"id": user["id"], "username": user["username"], "role": user["role"]})
     u_dict = format_user_dict(user)
 

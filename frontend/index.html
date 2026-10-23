@@ -84,28 +84,12 @@
             <path d="M11.5 11.5 20.5 20.5M20.5 11.5 11.5 20.5" stroke="url(#arx-lg2)" stroke-width="2.6" stroke-linecap="round"/>
           </svg>
           <span class="logo-text" style="font-size:24px">ARENA<span class="x">X</span></span>
-          <span class="land-kicker" style="margin-left:6px">DBMS Mini-Project</span>
         </div>
 
         <h1 class="land-title">Automated Tournament <span class="grad-text">Management</span></h1>
         <p class="land-sub">Create tournaments. Build brackets. Track winners. Let ArenaX handle the rest.</p>
 
-        <div class="land-features">
-          <div class="land-feat">
-            <span class="lf-ico"><span data-icon="gitBranch"></span></span>
-            <div><b>Auto-generated brackets</b><span>The moment capacity fills, the tournament LOCKS and every match row is inserted — wired by a self-referencing <code class="mono" style="font-size:11px;color:#7DD3FC">next_match_id</code> foreign key.</span></div>
-          </div>
-          <div class="land-feat">
-            <span class="lf-ico"><span data-icon="database"></span></span>
-            <div><b>Constraints you can see</b><span>Capacity checks, unique registrations and roster limits are enforced in the database — and surfaced in the UI as live counters and progress.</span></div>
-          </div>
-          <div class="land-feat">
-            <span class="lf-ico"><span data-icon="zap"></span></span>
-            <div><b>Atomic winner propagation</b><span>Declaring a winner runs one transaction: complete the match, advance the winner, recalculate tournament state — COMMIT or ROLLBACK.</span></div>
-          </div>
-        </div>
-
-        <div class="land-flow" aria-label="Core workflow">
+        <div class="land-flow" style="margin-top:40px" aria-label="Core workflow">
           <span class="lf-step">REGISTER</span><span class="lf-arrow">→</span>
           <span class="lf-step hot">LOCK</span><span class="lf-arrow">→</span>
           <span class="lf-step">BRACKET</span><span class="lf-arrow">→</span>
@@ -134,8 +118,8 @@
             </div>
 
             <div class="field">
-              <label class="field-label" for="login-username">Username or email</label>
-              <input class="input" id="login-username" name="username" placeholder="alex" autocomplete="username" required>
+              <label class="field-label" for="login-username">Username</label>
+              <input class="input" id="login-username" name="username" placeholder="player username" autocomplete="username" required>
             </div>
 
             <div class="field">
@@ -146,8 +130,7 @@
               </div>
             </div>
 
-            <div style="display:flex;align-items:center;justify-content:space-between">
-              <label class="checkbox-row"><input type="checkbox" id="remember-me" checked> Remember me</label>
+            <div style="display:flex;align-items:center;justify-content:flex-end">
               <a href="#" id="forgot-link" style="font-size:12.5px;color:var(--accent);text-decoration:none;font-weight:600">Forgot password?</a>
             </div>
 
@@ -172,7 +155,6 @@
                 <button type="button" class="seg-btn" data-role="ADMIN" role="radio" aria-checked="false" style="flex:1;justify-content:center"><span data-icon="shield"></span>Admin</button>
               </div>
               <input type="hidden" id="signup-role" value="PLAYER">
-              <span class="field-hint">Stored as <code class="mono">users.role</code> · CHECK ∈ (PLAYER, ADMIN)</span>
             </div>
             <div class="field">
               <label class="field-label" for="signup-name">Full name</label>
@@ -181,12 +163,10 @@
             <div class="field">
               <label class="field-label" for="signup-username">Username *</label>
               <input class="input" id="signup-username" name="username" placeholder="alex" autocomplete="username" required>
-              <span class="field-hint">3–20 chars · letters, numbers, underscore · UNIQUE</span>
             </div>
             <div class="field">
               <label class="field-label" for="signup-email">Email *</label>
               <input class="input" id="signup-email" name="email" type="email" placeholder="alex@campus.edu" autocomplete="email" required>
-              <span class="field-hint">UNIQUE — duplicate emails are rejected</span>
             </div>
             <div class="field">
               <label class="field-label" for="signup-password">Password *</label>
